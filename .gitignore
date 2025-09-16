@@ -35,8 +35,5 @@ Thumbs.db
 coverage.out
 coverage.html
 
-# Dependency cache
-go.sum
-
 # Temp files
 tmp/
