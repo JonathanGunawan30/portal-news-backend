@@ -32,7 +32,7 @@ func RunServer() {
 		return
 	}
 
-	err = os.MkdirAll("./temp/content", 0755)
+	err = os.MkdirAll("/tmp/content", 0755)
 	if err != nil {
 		log.Fatal().Msgf("Error create temp directory: %v", err)
 		return
