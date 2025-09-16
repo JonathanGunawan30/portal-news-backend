@@ -127,8 +127,9 @@ func RunServer() {
 	feApp.Get("/contents", contentHandler.GetContentWithQuery)
 	feApp.Get("/contents/:id", contentHandler.GetContentDetail)
 
-	if cfg.App.AppPort == "" {
-		cfg.App.AppPort = os.Getenv("APP_PORT")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
 
 	quit := make(chan os.Signal, 1)
