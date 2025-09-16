@@ -127,8 +127,6 @@ func RunServer() {
 	feApp.Get("/contents", contentHandler.GetContentWithQuery)
 	feApp.Get("/contents/:id", contentHandler.GetContentDetail)
 
-	api.Get("/debug/db", contentHandler.DebugDBConnection)
-
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"

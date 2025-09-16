@@ -19,10 +19,17 @@ func SeedRoles(db *gorm.DB) {
 		Password: bytes,
 	}
 
-	if err := db.FirstOrCreate(&admin).Error; err != nil {
-		log.Fatal().Err(err).Msg("Failed to seed admin user")
-	} else {
+	result := db.FirstOrCreate(&admin, model.User{Email: admin.Email})
+
+	if result.Error != nil {
+		log.Fatal().Err(result.Error).Msg("Failed to seed admin user")
+		return
+	}
+
+	if result.RowsAffected > 0 {
 		log.Info().Msg("Admin user seeded successfully")
+	} else {
+		log.Info().Msg("Admin user already exists, skipping seed.")
 	}
 
 }
