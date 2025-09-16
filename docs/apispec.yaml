@@ -1,0 +1,710 @@
+openapi: 3.1.0
+info:
+  title: Portal News
+  description: API Specifications for Portal News
+  version: 1.0.0
+servers:
+  - url: 'http://localhost:8080/api'
+    description: Development Server
+tags:
+  - name: Public
+    description: Endpoints for public front-end consumption
+  - name: Authentication
+  - name: User Profile
+  - name: Categories
+    description: Admin operations for categories
+  - name: Contents
+    description: Admin operations for contents
+
+paths:
+  /fe/categories:
+    get:
+      summary: Get All Categories (Public)
+      tags:
+        - Public
+      responses:
+        '200':
+          description: A list of all public categories
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Category'
+
+  /fe/contents:
+    get:
+      summary: Get All Contents with Query (Public)
+      tags:
+        - Public
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 6
+        - name: order
+          in: query
+          schema:
+            type: string
+            default: 'created_at'
+        - name: orderType
+          in: query
+          schema:
+            type: string
+            default: 'DESC'
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: category_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A paginated list of contents
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Content'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+
+  /fe/contents/{id}:
+    get:
+      summary: Get Content Detail (Public)
+      tags:
+        - Public
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Detailed content object
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Content'
+        '404':
+          description: Content not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleErrorResponse'
+
+  /login:
+    post:
+      summary: User Login
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful, returns access token
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/AuthData'
+        '400':
+          description: Bad Request (e.g., invalid credentials or validation error)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleErrorResponse'
+
+  /admin/users/profile:
+    get:
+      summary: Get User Profile
+      tags:
+        - User Profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile fetched successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Profile'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleErrorResponse'
+
+  /admin/users/update-password:
+    put:
+      summary: Update User Password
+      tags:
+        - User Profile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePasswordRequest'
+      responses:
+        '200':
+          description: Password updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '400':
+          description: Bad Request (e.g., validation error, invalid current password)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleErrorResponse'
+
+  /admin/categories:
+    get:
+      summary: Get All Categories (Admin)
+      tags:
+        - Categories
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: A list of categories
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Category'
+    post:
+      summary: Create a New Category (Admin)
+      tags:
+        - Categories
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+      responses:
+        '201':
+          description: Category created successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CategoryMutationData'
+
+  /admin/categories/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      summary: Get Category by ID (Admin)
+      tags:
+        - Categories
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Category fetched successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Category'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleErrorResponse'
+    put:
+      summary: Update Category by ID (Admin)
+      tags:
+        - Categories
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CategoryRequest'
+      responses:
+        '200':
+          description: Category updated successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/CategoryMutationData'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleErrorResponse'
+    delete:
+      summary: Delete Category by ID (Admin)
+      tags:
+        - Categories
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Category deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          description: Category not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleErrorResponse'
+
+  /admin/contents:
+    get:
+      summary: Get All Contents (Admin)
+      tags:
+        - Contents
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: order
+          in: query
+          schema:
+            type: string
+            default: 'created_at'
+        - name: orderType
+          in: query
+          schema:
+            type: string
+            default: 'DESC'
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: category_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: A paginated list of contents for admin
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Content'
+                      pagination:
+                        $ref: '#/components/schemas/Pagination'
+    post:
+      summary: Create a New Content (Admin)
+      tags:
+        - Contents
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContentRequest'
+      responses:
+        '201':
+          description: Content created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /admin/contents/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      summary: Get Content by ID (Admin)
+      tags:
+        - Contents
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Content fetched successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/Content'
+        '404':
+          description: Content not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleErrorResponse'
+    put:
+      summary: Update Content by ID (Admin)
+      tags:
+        - Contents
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContentRequest'
+      responses:
+        '200':
+          description: Content updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          description: Content not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleErrorResponse'
+    delete:
+      summary: Delete Content by ID (Admin)
+      tags:
+        - Contents
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Content deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+        '404':
+          description: Content not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SimpleErrorResponse'
+
+  /admin/contents/upload-image:
+    post:
+      summary: Upload a Content Image (Admin)
+      tags:
+        - Contents
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Image uploaded successfully
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ApiResponse'
+                  - type: object
+                    properties:
+                      data:
+                        $ref: '#/components/schemas/ImageUploadData'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Meta:
+      type: object
+      properties:
+        status:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: 'Operation successful'
+
+    Pagination:
+      type: object
+      properties:
+        total_record:
+          type: integer
+          format: int64
+        total_page:
+          type: integer
+        page:
+          type: integer
+        per_page:
+          type: integer
+
+    ApiResponse:
+      type: object
+      properties:
+        meta:
+          $ref: '#/components/schemas/Meta'
+
+    SimpleErrorResponse:
+      type: object
+      properties:
+        status:
+          type: boolean
+          example: false
+        message:
+          type: string
+          example: 'An error occurred'
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: 'user@example.com'
+        password:
+          type: string
+          example: 'password123'
+
+    CategoryRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+          example: 'Teknologi'
+
+    ContentRequest:
+      type: object
+      required: [title, description, category_id]
+      properties:
+        title:
+          type: string
+        excerpt:
+          type: string
+        description:
+          type: string
+        tags:
+          type: string
+          description: 'Comma-separated tags'
+          example: 'golang,api,news'
+        category_id:
+          type: integer
+          example: 1
+        status:
+          type: string
+          enum: [DRAFT, PUBLISH]
+          example: 'PUBLISH'
+        image:
+          type: string
+          format: uri
+          example: 'https://example.com/image.jpg'
+
+    UpdatePasswordRequest:
+      type: object
+      required: [current_password, new_password, confirm_password]
+      properties:
+        current_password:
+          type: string
+        new_password:
+          type: string
+        confirm_password:
+          type: string
+
+    AuthData:
+      type: object
+      properties:
+        access_token:
+          type: string
+          example: 'ey...'
+        expired_at:
+          type: integer
+          format: int64
+          description: 'Unix timestamp of expiration time'
+          example: 1672531199
+
+    CategoryMutationData:
+      type: object
+      properties:
+        title:
+          type: string
+          example: 'Judul Kategori Baru'
+
+    ImageUploadData:
+      type: object
+      properties:
+        url_image:
+          type: string
+          format: uri
+          example: 'https://pub-your-bucket.r2.dev/image-name.jpg'
+
+    Category:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        title:
+          type: string
+          example: 'Olahraga'
+        slug:
+          type: string
+          example: 'olahraga'
+        created_by_name:
+          type: string
+          example: 'Admin User'
+
+    Content:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        excerpt:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [DRAFT, PUBLISH]
+        image:
+          type: string
+          format: uri
+        tags:
+          type: array
+          items:
+            type: string
+        author:
+          type: string
+        category_name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        category_id:
+          type: integer
+        created_by_id:
+          type: integer
+
+    Profile:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 1
+        name:
+          type: string
+          example: 'John Doe'
+        email:
+          type: string
+          format: email
+          example: 'john.doe@example.com'
