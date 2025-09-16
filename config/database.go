@@ -15,7 +15,7 @@ type Postgres struct {
 }
 
 func (cfg *Config) ConnectionPostgres() (*Postgres, error) {
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s",
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=require",
 		cfg.PsqlDB.User,
 		cfg.PsqlDB.Password,
 		cfg.PsqlDB.Host,
