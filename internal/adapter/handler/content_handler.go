@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -28,6 +29,7 @@ type ContentHandler interface {
 
 	GetContentWithQuery(ctx *fiber.Ctx) error
 	GetContentDetail(ctx *fiber.Ctx) error
+	DebugDBConnection(ctx *fiber.Ctx) error
 }
 
 type contentHandler struct {
@@ -613,4 +615,38 @@ func (handler *contentHandler) GetContentDetail(ctx *fiber.Ctx) error {
 	successResp.Data = contentResponse
 	return ctx.JSON(successResp)
 
+}
+
+func (h *contentHandler) DebugDBConnection(ctx *fiber.Ctx) error {
+	host := os.Getenv("DATABASE_HOST")
+	user := os.Getenv("DATABASE_USER")
+	password := os.Getenv("DATABASE_PASSWORD")
+	dbname := os.Getenv("DATABASE_NAME")
+	port := os.Getenv("DATABASE_PORT")
+
+	dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=require",
+		host, user, password, dbname, port,
+	)
+	safeDSN := strings.Replace(dsn, password, "[REDACTED]", 1)
+
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return ctx.Status(500).JSON(fiber.Map{
+			"message": "Error from sql.Open",
+			"error":   err.Error(),
+			"dsn":     safeDSN,
+		})
+	}
+	defer db.Close()
+
+	err = db.Ping()
+	if err != nil {
+		return ctx.Status(500).JSON(fiber.Map{
+			"message": "Error from db.Ping",
+			"error":   err.Error(),
+			"dsn":     safeDSN,
+		})
+	}
+
+	return ctx.Status(200).JSON(fiber.Map{"message": "Connection successful!"})
 }
