@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/JonathanGunawan30/portal-news-backend.git/database/seeds"
 	"github.com/rs/zerolog/log"
@@ -38,6 +39,7 @@ func (cfg *Config) ConnectionPostgres() (*Postgres, error) {
 
 	sqlDB.SetMaxOpenConns(cfg.PsqlDB.DBMaxOpen)
 	sqlDB.SetMaxIdleConns(cfg.PsqlDB.DBMaxIdle)
+	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	return &Postgres{
 		DB: db,
