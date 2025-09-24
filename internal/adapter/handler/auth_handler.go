@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"time"
+
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/adapter/handler/request"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/adapter/handler/response"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/core/domain/entity"
@@ -56,16 +58,21 @@ func (handler *authHandler) Login(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusBadRequest).JSON(errResp)
 	}
 
-	authData := response.AuthData{
-		AccessToken: result.AccessToken,
-		ExpiredAt:   result.ExpiredAt,
-	}
+	ctx.Cookie(&fiber.Cookie{
+		Name:     "X-API-TOKEN",
+		Value:    result.AccessToken,
+		Expires:  time.Unix(result.ExpiredAt, 0),
+		HTTPOnly: true,
+		Secure:   true,
+		SameSite: "Lax",
+	})
 
 	var successResp response.DefaultSuccessResponse
 	successResp.Meta.Status = true
 	successResp.Meta.Message = "Login Successful"
-
-	successResp.Data = authData
+	successResp.Data = fiber.Map{
+		"expired_at": result.ExpiredAt,
+	}
 
 	return ctx.JSON(successResp)
 

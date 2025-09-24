@@ -619,9 +619,6 @@ components:
     AuthData:
       type: object
       properties:
-        access_token:
-          type: string
-          example: 'ey...'
         expired_at:
           type: integer
           format: int64

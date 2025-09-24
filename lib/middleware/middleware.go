@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/JonathanGunawan30/portal-news-backend.git/config"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/adapter/handler/response"
@@ -27,24 +26,14 @@ func (o *Options) CheckToken() fiber.Handler {
 	return func(ctx *fiber.Ctx) error {
 		var errorResponse response.ErrorResponseDefault
 
-		authHeader := strings.TrimSpace(ctx.Get("Authorization"))
-
-		if authHeader == "" {
+		tokenString := ctx.Cookies("X-API-TOKEN")
+		if tokenString == "" {
 			errorResponse.Meta.Status = false
-			errorResponse.Meta.Message = "Missing Authorization Header"
+			errorResponse.Meta.Message = "Missing authentication token"
 			return ctx.Status(fiber.StatusUnauthorized).JSON(errorResponse)
 		}
 
-		parts := strings.Fields(authHeader)
-		if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") {
-			errorResponse.Meta.Status = false
-			errorResponse.Meta.Message = "Invalid Authorization header format"
-			return ctx.Status(fiber.StatusUnauthorized).JSON(errorResponse)
-		}
-
-		tokenString := parts[1]
 		claims, err := o.authJwt.VerifyAccessToken(tokenString)
-
 		if err != nil {
 			errorResponse.Meta.Status = false
 
