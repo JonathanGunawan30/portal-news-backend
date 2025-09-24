@@ -65,7 +65,17 @@ func RunServer() {
 	userHandler := handler.NewUserHandler(userService)
 
 	app := fiber.New()
-	app.Use(cors.New())
+	allowOrigins := "https://portal-news-frontend.vercel.app"
+	if os.Getenv("APP_ENV") == "development" {
+		allowOrigins = "http://localhost:3000"
+	}
+
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     allowOrigins,
+		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+		AllowCredentials: true,
+	}))
 	app.Use(recover.New())
 	app.Use(logger.New(logger.Config{
 		Format: "[${time}] ${ip} ${status} - ${latency} ${method} ${path}\n",
@@ -136,7 +146,7 @@ func RunServer() {
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		if err := app.Listen(":" + cfg.App.AppPort); err != nil {
+		if err := app.Listen(":" + port); err != nil {
 			log.Error().Err(err).Msg("listen error")
 		}
 	}()
