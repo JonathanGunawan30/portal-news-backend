@@ -23,7 +23,10 @@ func (cfg *Config) ConnectionPostgres() (*Postgres, error) {
 		cfg.PsqlDB.DBName,
 	)
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+	db, err := gorm.Open(postgres.New(postgres.Config{
+		DSN:                  dsn,
+		PreferSimpleProtocol: true,
+	}), &gorm.Config{
 		PrepareStmt: false,
 	})
 
