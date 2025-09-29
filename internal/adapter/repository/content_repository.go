@@ -47,7 +47,6 @@ func (repository *contentRepository) GetContents(ctx context.Context, query enti
 	if query.CategoryID > 0 {
 		queryBuilder = queryBuilder.Where("category_id = ?", query.CategoryID)
 	}
-	queryBuilder = queryBuilder.Where("status = ?", "PUBLISH")
 
 	err := queryBuilder.Count(&totalRows).Error
 	if err != nil {
@@ -109,7 +108,7 @@ func (repository *contentRepository) GetContents(ctx context.Context, query enti
 
 func (repository *contentRepository) GetContentByID(ctx context.Context, id int64) (*entity.ContentEntity, error) {
 	var modelContent model.Content
-	result := repository.db.WithContext(ctx).Where("status = ?", "PUBLISH").Preload("User").Preload("Category").Take(&modelContent, id)
+	result := repository.db.WithContext(ctx).Preload("User").Preload("Category").Take(&modelContent, id)
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {

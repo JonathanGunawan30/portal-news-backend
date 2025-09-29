@@ -16,6 +16,7 @@ var errResp response.ErrorResponseDefault
 
 type AuthHandler interface {
 	Login(ctx *fiber.Ctx) error
+	Logout(ctx *fiber.Ctx) error
 }
 
 type authHandler struct {
@@ -63,8 +64,9 @@ func (handler *authHandler) Login(ctx *fiber.Ctx) error {
 		Value:    result.AccessToken,
 		Expires:  time.Unix(result.ExpiredAt, 0),
 		HTTPOnly: true,
-		Secure:   true,
+		Secure:   false,
 		SameSite: "Lax",
+		Path:     "/",
 	})
 
 	var successResp response.DefaultSuccessResponse
@@ -76,4 +78,23 @@ func (handler *authHandler) Login(ctx *fiber.Ctx) error {
 
 	return ctx.JSON(successResp)
 
+}
+
+func (handler *authHandler) Logout(ctx *fiber.Ctx) error {
+	ctx.Cookie(&fiber.Cookie{
+		Name:     "X-API-TOKEN",
+		Value:    "",
+		Expires:  time.Now().Add(-time.Hour),
+		HTTPOnly: true,
+		Secure:   false, // ganti true kalau sudah pakai HTTPS
+		SameSite: "Lax",
+		Path:     "/",
+	})
+
+	var successResp response.DefaultSuccessResponse
+	successResp.Meta.Status = true
+	successResp.Meta.Message = "Logout Successful"
+	successResp.Data = nil
+
+	return ctx.JSON(successResp)
 }

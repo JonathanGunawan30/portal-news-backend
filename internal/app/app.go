@@ -65,7 +65,7 @@ func RunServer() {
 	userHandler := handler.NewUserHandler(userService)
 
 	app := fiber.New()
-	allowOrigins := "https://portal-news-frontend.vercel.app"
+	allowOrigins := "https://blog.jonathangunawan.com,https://www.blog.jonathangunawan.com"
 	if os.Getenv("APP_ENV") == "development" {
 		allowOrigins = "http://localhost:3000"
 	}
@@ -112,6 +112,7 @@ func RunServer() {
 
 	adminApp := api.Group("/admin")
 	adminApp.Use(middlewareAuth.CheckToken())
+	adminApp.Post("/logout", authHandler.Logout)
 
 	categoryApp := adminApp.Group("/categories")
 	categoryApp.Get("/", categoryHandler.GetCategories)

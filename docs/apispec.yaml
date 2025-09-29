@@ -148,6 +148,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/SimpleErrorResponse'
 
+  /admin/logout:
+    post:
+      summary: User Logout
+      tags: [ Authentication ]
+      security:
+        - cookieAuth: [ ]
+      responses:
+        '200':
+          description: Logout successful, cookie cleared
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ApiResponse' }
+        '401':
+          description: Unauthorized (no active session)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SimpleErrorResponse' }
+
   /admin/users/profile:
     get:
       summary: Get User Profile
@@ -518,6 +536,10 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: X-API-TOKEN
 
   schemas:
     Meta:
