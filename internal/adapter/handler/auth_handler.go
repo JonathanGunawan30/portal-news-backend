@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"os"
 	"time"
 
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/adapter/handler/request"
@@ -59,13 +60,20 @@ func (handler *authHandler) Login(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusBadRequest).JSON(errResp)
 	}
 
+	sameSite := "Lax"
+	secure := false
+	if os.Getenv("APP_ENV") == "production" {
+		sameSite = "None"
+		secure = true
+	}
+
 	ctx.Cookie(&fiber.Cookie{
 		Name:     "X-API-TOKEN",
 		Value:    result.AccessToken,
 		Expires:  time.Unix(result.ExpiredAt, 0),
 		HTTPOnly: true,
-		Secure:   false,
-		SameSite: "Lax",
+		Secure:   secure,
+		SameSite: sameSite,
 		Path:     "/",
 	})
 
