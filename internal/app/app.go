@@ -65,7 +65,7 @@ func RunServer() {
 	userHandler := handler.NewUserHandler(userService)
 
 	app := fiber.New()
-	allowOrigins := "https://blog.jonathangunawan.com,https://www.blog.jonathangunawan.com"
+	allowOrigins := "https://blog.jonathangunawan.com"
 	if os.Getenv("APP_ENV") == "development" {
 		allowOrigins = "http://localhost:3000"
 	}
