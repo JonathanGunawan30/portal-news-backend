@@ -15,7 +15,6 @@ import (
 	"github.com/JonathanGunawan30/portal-news-backend.git/lib/auth"
 	"github.com/JonathanGunawan30/portal-news-backend.git/lib/middleware"
 	"github.com/JonathanGunawan30/portal-news-backend.git/lib/pagination"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/gofiber/contrib/swagger"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -38,9 +37,7 @@ func RunServer() {
 		return
 	}
 
-	cdfR2 := cfg.LoadAwsConfig()
-	s3Client := s3.NewFromConfig(cdfR2)
-	r2Adapter := cloudflare.NewCloudflareR2Adapter(s3Client, cfg)
+	r2Adapter := cloudflare.NewCloudflareR2Adapter(cfg)
 
 	jwt := auth.NewJwt(cfg)
 	middlewareAuth := middleware.NewMiddleware(cfg)
