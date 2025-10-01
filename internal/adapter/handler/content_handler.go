@@ -3,7 +3,6 @@ package handler
 import (
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -390,18 +389,16 @@ func (handler *contentHandler) DeleteContentByID(ctx *fiber.Ctx) error {
 	successResp.Meta.Message = "Content deleted successfully"
 	return ctx.Status(fiber.StatusOK).JSON(successResp)
 }
-
 func (handler *contentHandler) UploadImageR2(ctx *fiber.Ctx) error {
 	claims, ok := ctx.Locals("user").(*entity.JwtData)
-	if claims.UserID == 0 || !ok {
-		code := "[HANDLER] DeleteContentByID - 1"
+	if !ok || claims.UserID == 0 {
+		code := "[HANDLER] UploadImageR2 - 1"
 		log.Errorw(code, "reason", "unauthorized")
 		errResp.Meta.Status = false
 		errResp.Meta.Message = "Unauthorized"
 		return ctx.Status(fiber.StatusUnauthorized).JSON(errResp)
 	}
 
-	var req request.FileUploadRequest
 	file, err := ctx.FormFile("image")
 	if err != nil {
 		code := "[HANDLER] UploadImageR2 - 2"
@@ -411,21 +408,22 @@ func (handler *contentHandler) UploadImageR2(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusBadRequest).JSON(errResp)
 	}
 
-	if err = ctx.SaveFile(file, fmt.Sprintf("./temp/content/%s", file.Filename)); err != nil {
+	f, err := file.Open()
+	if err != nil {
 		code := "[HANDLER] UploadImageR2 - 3"
 		log.Errorw(code, err)
 		errResp.Meta.Status = false
-		errResp.Meta.Message = "Failed to upload image"
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errResp)
+		errResp.Meta.Message = "Failed to open uploaded file"
+		return ctx.Status(fiber.StatusBadRequest).JSON(errResp)
 	}
+	defer f.Close()
 
-	req.Image = fmt.Sprintf("./temp/content/%s", file.Filename)
-	reqEntity := entity.FileUploadEntity{
-		Name: fmt.Sprintf("%d-%d", int64(claims.UserID), time.Now().UnixNano()),
-		Path: req.Image,
-	}
+	fileName := fmt.Sprintf("%d-%d-%s", int64(claims.UserID), time.Now().UnixNano(), file.Filename)
 
-	imageURL, err := handler.contentService.UploadImageR2(ctx.Context(), reqEntity)
+	imageURL, err := handler.contentService.UploadImageR2(ctx.Context(), entity.FileUploadEntity{
+		Name: fileName,
+	}, f)
+
 	if err != nil {
 		code := "[HANDLER] UploadImageR2 - 4"
 		log.Errorw(code, err)
@@ -434,25 +432,12 @@ func (handler *contentHandler) UploadImageR2(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(errResp)
 	}
 
-	if req.Image != "" {
-		err = os.Remove(req.Image)
-		if err != nil {
-			code := "[HANDLER] UploadImageR2 - 5"
-			log.Errorw(code, err)
-			errResp.Meta.Status = false
-			errResp.Meta.Message = "Failed to delete image"
-			return ctx.Status(fiber.StatusInternalServerError).JSON(errResp)
-		}
-	}
-
-	urlImageResp := map[string]string{
-		"url_image": imageURL,
-	}
 	var successResp response.DefaultSuccessResponse
 	successResp.Meta.Status = true
-	successResp.Pagination = nil
 	successResp.Meta.Message = "Image uploaded successfully"
-	successResp.Data = urlImageResp
+	successResp.Data = map[string]string{
+		"url_image": imageURL,
+	}
 	return ctx.Status(fiber.StatusCreated).JSON(successResp)
 }
 

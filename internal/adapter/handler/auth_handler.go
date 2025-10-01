@@ -89,13 +89,20 @@ func (handler *authHandler) Login(ctx *fiber.Ctx) error {
 }
 
 func (handler *authHandler) Logout(ctx *fiber.Ctx) error {
+	sameSite := "Lax"
+	secure := false
+	if os.Getenv("APP_ENV") == "production" {
+		sameSite = "None"
+		secure = true
+	}
+
 	ctx.Cookie(&fiber.Cookie{
 		Name:     "X-API-TOKEN",
 		Value:    "",
 		Expires:  time.Now().Add(-time.Hour),
 		HTTPOnly: true,
-		Secure:   false, // ganti true kalau sudah pakai HTTPS
-		SameSite: "Lax",
+		Secure:   secure,
+		SameSite: sameSite,
 		Path:     "/",
 	})
 

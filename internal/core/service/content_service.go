@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"io"
 
 	"github.com/JonathanGunawan30/portal-news-backend.git/config"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/adapter/cloudflare"
@@ -16,7 +17,7 @@ type ContentService interface {
 	CreateContent(ctx context.Context, request entity.ContentEntity) error
 	UpdateContent(ctx context.Context, request entity.ContentEntity) error
 	DeleteContentByID(ctx context.Context, id int64) error
-	UploadImageR2(ctx context.Context, request entity.FileUploadEntity) (string, error)
+	UploadImageR2(ctx context.Context, req entity.FileUploadEntity, body io.Reader) (string, error)
 }
 
 type contentService struct {
@@ -85,12 +86,12 @@ func (service *contentService) DeleteContentByID(ctx context.Context, id int64) 
 	return nil
 }
 
-func (service *contentService) UploadImageR2(ctx context.Context, request entity.FileUploadEntity) (string, error) {
-	urlImage, err := service.r2.UploadImage(&request)
+func (service *contentService) UploadImageR2(ctx context.Context, req entity.FileUploadEntity, body io.Reader) (string, error) {
+	url, err := service.r2.UploadImage(req, body)
 	if err != nil {
 		code := "[SERVICE] UploadImageR2 - 1"
 		log.Errorw(code, err)
 		return "", err
 	}
-	return urlImage, nil
+	return url, nil
 }
