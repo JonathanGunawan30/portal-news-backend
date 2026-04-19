@@ -26,4 +26,5 @@ type QueryString struct {
 	OrderType  string
 	Search     string
 	CategoryID int64
+	Status     string
 }

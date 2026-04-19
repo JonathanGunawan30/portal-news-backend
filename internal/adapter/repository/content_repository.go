@@ -47,6 +47,9 @@ func (repository *contentRepository) GetContents(ctx context.Context, query enti
 	if query.CategoryID > 0 {
 		queryBuilder = queryBuilder.Where("category_id = ?", query.CategoryID)
 	}
+	if query.Status != "" {
+		queryBuilder = queryBuilder.Where("status = ?", query.Status)
+	}
 
 	err := queryBuilder.Count(&totalRows).Error
 	if err != nil {

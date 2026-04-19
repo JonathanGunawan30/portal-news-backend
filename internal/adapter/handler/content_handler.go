@@ -501,6 +501,7 @@ func (handler *contentHandler) GetContentWithQuery(ctx *fiber.Ctx) error {
 		OrderType:  orderType,
 		Search:     search,
 		CategoryID: int64(categoryID),
+		Status:     "PUBLISH",
 	}
 
 	results, totalData, totalPages, err := handler.contentService.GetContents(ctx.Context(), reqEntity)
@@ -573,6 +574,14 @@ func (handler *contentHandler) GetContentDetail(ctx *fiber.Ctx) error {
 		errResp.Meta.Status = false
 		errResp.Meta.Message = "Failed to get content"
 		return ctx.Status(fiber.StatusInternalServerError).JSON(errResp)
+	}
+
+	if result.Status != "PUBLISH" {
+		code := "[HANDLER] GetContentDetail - 4"
+		log.Errorw(code, "reason", "content not published")
+		errResp.Meta.Status = false
+		errResp.Meta.Message = "Content not found"
+		return ctx.Status(fiber.StatusNotFound).JSON(errResp)
 	}
 
 	contentResponse := response.ContentResponse{
