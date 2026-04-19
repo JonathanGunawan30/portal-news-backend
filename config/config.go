@@ -6,8 +6,9 @@ type App struct {
 	AppPort string `json:"app_port"`
 	AppEnv  string `json:"app_env"`
 
-	JwtSecretKey string `json:"jwt_secret_key"`
-	JwtIssuer    string `json:"jwt_issuer"`
+	JwtSecretKey       string `json:"jwt_secret_key"`
+	JwtIssuer          string `json:"jwt_issuer"`
+	RecaptchaSecretKey string `json:"recaptcha_secret_key"`
 }
 
 type PsqlDB struct {
@@ -38,10 +39,11 @@ type Config struct {
 func NewConfig() *Config {
 	return &Config{
 		App: App{
-			AppPort:      viper.GetString("APP_PORT"),
-			AppEnv:       viper.GetString("APP_ENV"),
-			JwtSecretKey: viper.GetString("JWT_SECRET_KEY"),
-			JwtIssuer:    viper.GetString("JWT_ISSUER"),
+			AppPort:            viper.GetString("APP_PORT"),
+			AppEnv:             viper.GetString("APP_ENV"),
+			JwtSecretKey:       viper.GetString("JWT_SECRET_KEY"),
+			JwtIssuer:          viper.GetString("JWT_ISSUER"),
+			RecaptchaSecretKey: viper.GetString("RECAPTCHA_SECRET_KEY"),
 		},
 		PsqlDB: PsqlDB{
 			Host:      viper.GetString("DATABASE_HOST"),

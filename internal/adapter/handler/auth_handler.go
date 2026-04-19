@@ -1,13 +1,16 @@
 package handler
 
 import (
+	"fmt"
 	"os"
 	"time"
 
+	"github.com/JonathanGunawan30/portal-news-backend.git/config"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/adapter/handler/request"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/adapter/handler/response"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/core/domain/entity"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/core/service"
+	"github.com/JonathanGunawan30/portal-news-backend.git/lib/recaptcha"
 	validation "github.com/JonathanGunawan30/portal-news-backend.git/validator"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
@@ -22,10 +25,14 @@ type AuthHandler interface {
 
 type authHandler struct {
 	authService service.AuthService
+	cfg         *config.Config
 }
 
-func NewAuthHandler(authService service.AuthService) AuthHandler {
-	return &authHandler{authService: authService}
+func NewAuthHandler(authService service.AuthService, cfg *config.Config) AuthHandler {
+	return &authHandler{
+		authService: authService,
+		cfg:         cfg,
+	}
 }
 
 func (handler *authHandler) Login(ctx *fiber.Ctx) error {
@@ -44,6 +51,23 @@ func (handler *authHandler) Login(ctx *fiber.Ctx) error {
 		errResp.Meta.Status = false
 		errResp.Meta.Message = err.Error()
 		return ctx.Status(fiber.StatusBadRequest).JSON(errResp)
+	}
+
+	recaptchaResult, err := recaptcha.VerifyToken(handler.cfg.App.RecaptchaSecretKey, loginRequest.RecaptchaToken)
+	if err != nil {
+		code := "[HANDLER] login - recaptcha_error"
+		log.Errorw(code, err)
+		errResp.Meta.Status = false
+		errResp.Meta.Message = "Error verifying reCAPTCHA"
+		return ctx.Status(fiber.StatusInternalServerError).JSON(errResp)
+	}
+
+	if !recaptchaResult.Success || recaptchaResult.Score < 0.5 {
+		code := "[HANDLER] login - recaptcha_failed"
+		log.Errorw(code, fmt.Errorf("recaptcha failed: success=%v, score=%f", recaptchaResult.Success, recaptchaResult.Score))
+		errResp.Meta.Status = false
+		errResp.Meta.Message = "reCAPTCHA verification failed"
+		return ctx.Status(fiber.StatusForbidden).JSON(errResp)
 	}
 
 	userLoginRequest := entity.LoginRequest{

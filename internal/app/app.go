@@ -10,6 +10,7 @@ import (
 	"github.com/JonathanGunawan30/portal-news-backend.git/config"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/adapter/cloudflare"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/adapter/handler"
+	"github.com/JonathanGunawan30/portal-news-backend.git/internal/adapter/handler/response"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/adapter/repository"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/core/service"
 	"github.com/JonathanGunawan30/portal-news-backend.git/lib/auth"
@@ -18,6 +19,7 @@ import (
 	"github.com/gofiber/contrib/swagger"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/limiter"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
 	"github.com/rs/zerolog/log"
@@ -56,7 +58,7 @@ func RunServer() {
 	userService := service.NewUserService(userRepository)
 
 	// handler
-	authHandler := handler.NewAuthHandler(authService)
+	authHandler := handler.NewAuthHandler(authService, cfg)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	contentHandler := handler.NewContentHandler(contentService)
 	userHandler := handler.NewUserHandler(userService)
@@ -77,19 +79,29 @@ func RunServer() {
 	app.Use(logger.New(logger.Config{
 		Format: "[${time}] ${ip} ${status} - ${latency} ${method} ${path}\n",
 	}))
+	app.Use(limiter.New(limiter.Config{
+		Max:        60,
+		Expiration: 10 * time.Minute,
+		LimitReached: func(c *fiber.Ctx) error {
+			var errResp response.ErrorResponseDefault
+			errResp.Meta.Status = false
+			errResp.Meta.Message = "Too many requests"
+			return c.Status(fiber.StatusTooManyRequests).JSON(errResp)
+		},
+	}))
 
 	api := app.Group("/api")
 
-	log.Info().Msgf("--- Memulai Pengecekan Debug Swagger ---")
-	log.Info().Msgf("Nilai APP_ENV: '%s'", os.Getenv("APP_ENV"))
+	log.Info().Msgf("--- Starting Swagger Debug Check ---")
+	log.Info().Msgf("APP_ENV value: '%s'", os.Getenv("APP_ENV"))
 
 	filePath := "./docs/apispec.yaml"
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		log.Warn().Msgf("File spesifikasi Swagger TIDAK DITEMUKAN di path: %s", filePath)
+		log.Warn().Msgf("Swagger spec file NOT FOUND at path: %s", filePath)
 	} else {
-		log.Info().Msgf("File spesifikasi Swagger DITEMUKAN di path: %s", filePath)
+		log.Info().Msgf("Swagger spec file FOUND at path: %s", filePath)
 	}
-	log.Info().Msgf("--- Selesai Pengecekan Debug Swagger ---")
+	log.Info().Msgf("--- Swagger Debug Check Completed ---")
 
 	if os.Getenv("APP_ENV") == "development" {
 		swaggerCfg := swagger.Config{
