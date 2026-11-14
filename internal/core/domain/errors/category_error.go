@@ -3,6 +3,7 @@ package errors
 import "errors"
 
 var (
+	ErrorCategoryNotFound             = errors.New("category not found")
 	ErrorCategoryNotFoundToUpdate     = errors.New("category not found to update")
 	ErrorCategoryTitleAlreadyExist    = errors.New("category title already exists")
 	ErrorCategoryNotFoundToDelete     = errors.New("category not found to delete")

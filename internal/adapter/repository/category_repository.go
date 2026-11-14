@@ -7,6 +7,7 @@ import (
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/core/domain/entity"
 	categoryError "github.com/JonathanGunawan30/portal-news-backend.git/internal/core/domain/errors"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/core/domain/model"
+	"github.com/JonathanGunawan30/portal-news-backend.git/lib/conv"
 	"github.com/gofiber/fiber/v2/log"
 	"gorm.io/gorm"
 )
@@ -70,7 +71,7 @@ func (repository *categoryRepository) GetCategoryByID(ctx context.Context, id in
 
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-			return nil, errors.New("category not found")
+			return nil, categoryError.ErrorCategoryNotFound
 		}
 		code := "[REPOSITORY] GetCategoryByID - 1"
 		log.Errorw(code, result.Error)
@@ -108,41 +109,37 @@ func (repository *categoryRepository) CreateCategory(ctx context.Context, reques
 func (repository *categoryRepository) EditCategoryByID(ctx context.Context, request entity.CategoryEntity) error {
 	var foundCategory model.Category
 
-	result := repository.db.WithContext(ctx).Where("title = ?", request.Title).First(&foundCategory)
+	result := repository.db.WithContext(ctx).
+		Where("(title = ? OR slug = ?) AND id <> ?", request.Title, request.Slug, request.ID).
+		First(&foundCategory)
 
 	if result.Error == nil {
-		if foundCategory.ID == request.ID {
-			return nil
-		} else {
-			return categoryError.ErrorCategoryTitleAlreadyExist
-		}
-
-	} else if errors.Is(result.Error, gorm.ErrRecordNotFound) {
-		updateData := model.Category{
-			Title: request.Title,
-			Slug:  request.Slug,
-		}
-
-		updateResult := repository.db.WithContext(ctx).
-			Model(&model.Category{}).
-			Where("id = ?", request.ID).
-			Updates(updateData)
-
-		if updateResult.Error != nil {
-			code := "[REPOSITORY] EditCategoryByID - 2"
-			log.Errorw(code, updateResult.Error)
-			return updateResult.Error
-		}
-		if updateResult.RowsAffected == 0 {
-			return categoryError.ErrorCategoryNotFoundToUpdate
-		}
-		return nil
-
-	} else {
+		return categoryError.ErrorCategoryTitleAlreadyExist
+	} else if !errors.Is(result.Error, gorm.ErrRecordNotFound) {
 		code := "[REPOSITORY] EditCategoryByID - 1"
 		log.Errorw(code, result.Error)
 		return result.Error
 	}
+
+	updateData := model.Category{
+		Title: request.Title,
+		Slug:  request.Slug,
+	}
+
+	updateResult := repository.db.WithContext(ctx).
+		Model(&model.Category{}).
+		Where("id = ?", request.ID).
+		Updates(updateData)
+
+	if updateResult.Error != nil {
+		code := "[REPOSITORY] EditCategoryByID - 2"
+		log.Errorw(code, updateResult.Error)
+		return updateResult.Error
+	}
+	if updateResult.RowsAffected == 0 {
+		return categoryError.ErrorCategoryNotFoundToUpdate
+	}
+	return nil
 }
 
 func (repository *categoryRepository) DeleteCategoryByID(ctx context.Context, id int64) error {
@@ -166,7 +163,7 @@ func (repository *categoryRepository) DeleteCategoryByID(ctx context.Context, id
 	}
 
 	if result.RowsAffected == 0 {
-		code := "REPOSITORY] DeleteCategoryByID - 3"
+		code := "[REPOSITORY] DeleteCategoryByID - 3"
 		log.Errorw(code, "reason", "category not found")
 		return categoryError.ErrorCategoryNotFoundToDelete
 	}
@@ -176,7 +173,8 @@ func (repository *categoryRepository) DeleteCategoryByID(ctx context.Context, id
 
 func (repository *categoryRepository) IsTitleExists(ctx context.Context, title string) (bool, error) {
 	var count int64
-	err := repository.db.WithContext(ctx).Model(model.Category{}).Where("title = ?", title).Count(&count).Error
+	slug := conv.GenerateSlug(title)
+	err := repository.db.WithContext(ctx).Model(model.Category{}).Where("title = ? OR slug = ?", title, slug).Count(&count).Error
 	if err != nil {
 		code := "[REPOSITORY] IsTitleExist - 1"
 		log.Errorw(code, err)
