@@ -31,7 +31,7 @@ func (cfg *Config) ConnectionPostgres() (*Postgres, error) {
 	})
 
 	if err != nil {
-		log.Error().Err(err).Msg("[ConnectionPostgres-1 Failed to connect to database" + cfg.PsqlDB.Host)
+		log.Error().Err(err).Msg("[ConnectionPostgres-1] Failed to connect to database: " + cfg.PsqlDB.Host)
 		return nil, err
 	}
 
