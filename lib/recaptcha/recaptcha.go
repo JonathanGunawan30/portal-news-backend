@@ -1,12 +1,19 @@
 package recaptcha
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
+
+var httpClient = &http.Client{
+	Timeout: 5 * time.Second,
+}
 
 type RecaptchaResponse struct {
 	Success     bool      `json:"success"`
@@ -17,9 +24,24 @@ type RecaptchaResponse struct {
 	ErrorCodes  []string  `json:"error-codes"`
 }
 
-func VerifyToken(secretKey, token string) (*RecaptchaResponse, error) {
-	resp, err := http.PostForm("https://www.google.com/recaptcha/api/siteverify",
-		url.Values{"secret": {secretKey}, "response": {token}})
+func VerifyToken(ctx context.Context, secretKey, token string) (*RecaptchaResponse, error) {
+	if strings.TrimSpace(secretKey) == "" {
+		return nil, errors.New("reCAPTCHA secret key is not configured")
+	}
+
+	form := url.Values{"secret": {secretKey}, "response": {token}}
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodPost,
+		"https://www.google.com/recaptcha/api/siteverify",
+		strings.NewReader(form.Encode()),
+	)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

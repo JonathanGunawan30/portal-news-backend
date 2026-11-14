@@ -3,6 +3,7 @@ package conv
 import (
 	"strconv"
 	"strings"
+	"unicode"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -18,7 +19,25 @@ func CheckPasswordHash(password, hash string) bool {
 }
 
 func GenerateSlug(title string) string {
-	return strings.ReplaceAll(strings.ToLower(title), " ", "-")
+	var b strings.Builder
+	prevDash := false
+
+	for _, r := range strings.ToLower(strings.TrimSpace(title)) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+			prevDash = false
+		} else if unicode.IsSpace(r) || r == '-' || r == '_' || !unicode.IsLetter(r) {
+			if !prevDash && b.Len() > 0 {
+				b.WriteByte('-')
+				prevDash = true
+			}
+		} else {
+			b.WriteRune(r)
+			prevDash = false
+		}
+	}
+
+	return strings.TrimRight(b.String(), "-")
 }
 
 func StringToInt64(str string) (int64, error) {

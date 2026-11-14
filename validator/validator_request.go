@@ -3,6 +3,7 @@ package validation
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"reflect"
 	"strings"
 
@@ -13,6 +14,16 @@ var validate *validator.Validate
 
 func init() {
 	validate = validator.New(validator.WithRequiredStructEnabled())
+
+	_ = validate.RegisterValidation("safe_url", func(fl validator.FieldLevel) bool {
+		raw := strings.TrimSpace(fl.Field().String())
+		u, err := url.ParseRequestURI(raw)
+		if err != nil {
+			return false
+		}
+		scheme := strings.ToLower(u.Scheme)
+		return (scheme == "http" || scheme == "https") && u.Host != ""
+	})
 
 	validate.RegisterTagNameFunc(func(fld reflect.StructField) string {
 		tag := fld.Tag.Get("json")
@@ -61,6 +72,12 @@ func ValidateStruct(s any) error {
 				msgs = append(msgs, fmt.Sprintf("Field `%s` must be greater than or equal to %s.", field, fe.Param()))
 			case "lte":
 				msgs = append(msgs, fmt.Sprintf("Field `%s` must be less than or equal to %s.", field, fe.Param()))
+			case "gt":
+				msgs = append(msgs, fmt.Sprintf("Field `%s` must be greater than %s.", field, fe.Param()))
+			case "safe_url":
+				msgs = append(msgs, fmt.Sprintf("Field `%s` must be a valid HTTP or HTTPS URL.", field))
+			case "eqfield":
+				msgs = append(msgs, fmt.Sprintf("Field `%s` must match `%s`.", field, fe.Param()))
 			default:
 				msgs = append(msgs, fmt.Sprintf("Field `%s` is invalid.", field))
 			}

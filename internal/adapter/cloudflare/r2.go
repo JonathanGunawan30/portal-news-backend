@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
+	"time"
 
 	"github.com/JonathanGunawan30/portal-news-backend.git/config"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/core/domain/entity"
@@ -13,7 +15,7 @@ import (
 )
 
 type CloudflareR2Adapter interface {
-	UploadImage(request entity.FileUploadEntity, body io.Reader) (string, error)
+	UploadImage(ctx context.Context, request entity.FileUploadEntity, body io.Reader) (string, error)
 }
 
 type cloudflareR2Adapter struct {
@@ -29,16 +31,24 @@ func NewCloudflareR2Adapter(cfg *config.Config) CloudflareR2Adapter {
 	return &cloudflareR2Adapter{
 		Client:  clientBase,
 		Bucket:  cfg.R2.Name,
-		BaseURL: cfg.R2.PublicUrl,
+		BaseURL: strings.TrimRight(cfg.R2.PublicUrl, "/"),
 	}
 }
 
-func (cloudflare *cloudflareR2Adapter) UploadImage(request entity.FileUploadEntity, body io.Reader) (string, error) {
-	_, err := cloudflare.Client.PutObject(context.TODO(), &s3.PutObjectInput{
+func (cloudflare *cloudflareR2Adapter) UploadImage(ctx context.Context, request entity.FileUploadEntity, body io.Reader) (string, error) {
+	uploadCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	contentType := request.ContentType
+	if contentType == "" {
+		contentType = "image/jpeg"
+	}
+
+	_, err := cloudflare.Client.PutObject(uploadCtx, &s3.PutObjectInput{
 		Bucket:      aws.String(cloudflare.Bucket),
 		Key:         aws.String(request.Name),
 		Body:        body,
-		ContentType: aws.String("image/jpeg"),
+		ContentType: aws.String(contentType),
 	})
 	if err != nil {
 		code := "[CLOUDFLARE R2] UploadImage - 1"

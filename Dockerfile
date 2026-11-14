@@ -1,4 +1,4 @@
-FROM golang:1.25 AS builder
+FROM golang:1.27.4 AS builder
 
 ENV CGO_ENABLED=0
 
@@ -11,7 +11,7 @@ COPY . .
 
 RUN go build -ldflags="-w -s" -o main .
 
-FROM gcr.io/distroless/static-debian11
+FROM gcr.io/distroless/static-debian12
 
 COPY --from=builder /app/main /app/main
 

@@ -87,7 +87,7 @@ func (service *contentService) DeleteContentByID(ctx context.Context, id int64) 
 }
 
 func (service *contentService) UploadImageR2(ctx context.Context, req entity.FileUploadEntity, body io.Reader) (string, error) {
-	url, err := service.r2.UploadImage(req, body)
+	url, err := service.r2.UploadImage(ctx, req, body)
 	if err != nil {
 		code := "[SERVICE] UploadImageR2 - 1"
 		log.Errorw(code, err)

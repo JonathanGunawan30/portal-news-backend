@@ -14,6 +14,13 @@ import (
 	"gorm.io/gorm"
 )
 
+var allowedContentOrderColumns = map[string]string{
+	"id":         "id",
+	"title":      "title",
+	"created_at": "created_at",
+	"updated_at": "updated_at",
+}
+
 type ContentRepository interface {
 	GetContents(ctx context.Context, query entity.QueryString) ([]entity.ContentEntity, int64, int64, error)
 	GetContentByID(ctx context.Context, id int64) (*entity.ContentEntity, error)
@@ -32,12 +39,52 @@ func NewContentRepository(db *gorm.DB) ContentRepository {
 	}
 }
 
+func sanitizeOrderClause(orderBy, orderType string) string {
+	col, ok := allowedContentOrderColumns[strings.ToLower(strings.TrimSpace(orderBy))]
+	if !ok {
+		col = "created_at"
+	}
+
+	dir := "DESC"
+	if strings.EqualFold(strings.TrimSpace(orderType), "ASC") {
+		dir = "ASC"
+	}
+
+	return fmt.Sprintf("%s %s", col, dir)
+}
+
+func splitTags(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return []string{}
+	}
+	parts := strings.Split(raw, ",")
+	tags := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if trimmed := strings.TrimSpace(p); trimmed != "" {
+			tags = append(tags, trimmed)
+		}
+	}
+	return tags
+}
+
 func (repository *contentRepository) GetContents(ctx context.Context, query entity.QueryString) ([]entity.ContentEntity, int64, int64, error) {
 	var modelContents []model.Content
 	var totalRows int64
 
-	order := fmt.Sprintf("%s %s", query.OrderBy, query.OrderType)
-	offset := (query.Page - 1) * query.Limit
+	page := query.Page
+	if page <= 0 {
+		page = 1
+	}
+
+	limit := query.Limit
+	if limit <= 0 {
+		limit = 10
+	} else if limit > 100 {
+		limit = 100
+	}
+
+	order := sanitizeOrderClause(query.OrderBy, query.OrderType)
+	offset := (page - 1) * limit
 
 	queryBuilder := repository.db.WithContext(ctx).Model(&model.Content{})
 	if query.Search != "" {
@@ -64,7 +111,7 @@ func (repository *contentRepository) GetContents(ctx context.Context, query enti
 
 	err = queryBuilder.
 		Order(order).
-		Limit(query.Limit).
+		Limit(limit).
 		Offset(offset).
 		Preload("User").
 		Preload("Category").
@@ -78,14 +125,13 @@ func (repository *contentRepository) GetContents(ctx context.Context, query enti
 
 	var responses []entity.ContentEntity
 	for _, content := range modelContents {
-		tags := strings.Split(content.Tags, ",")
 		response := entity.ContentEntity{
 			ID:          content.ID,
 			Title:       content.Title,
 			Excerpt:     content.Excerpt,
 			Description: content.Description,
 			Image:       content.Image,
-			Tags:        tags,
+			Tags:        splitTags(content.Tags),
 			Status:      content.Status,
 			CategoryID:  content.CategoryID,
 			CreatedByID: content.CreatedByID,
@@ -104,7 +150,7 @@ func (repository *contentRepository) GetContents(ctx context.Context, query enti
 		}
 		responses = append(responses, response)
 	}
-	totalPages := int(math.Ceil(float64(totalRows) / float64(query.Limit)))
+	totalPages := int(math.Ceil(float64(totalRows) / float64(limit)))
 
 	return responses, totalRows, int64(totalPages), nil
 }
@@ -122,14 +168,13 @@ func (repository *contentRepository) GetContentByID(ctx context.Context, id int6
 		return nil, result.Error
 	}
 
-	tags := strings.Split(modelContent.Tags, ",")
 	response := entity.ContentEntity{
 		ID:          modelContent.ID,
 		Title:       modelContent.Title,
 		Excerpt:     modelContent.Excerpt,
 		Description: modelContent.Description,
 		Image:       modelContent.Image,
-		Tags:        tags,
+		Tags:        splitTags(modelContent.Tags),
 		Status:      modelContent.Status,
 		CategoryID:  modelContent.CategoryID,
 		CreatedByID: modelContent.CreatedByID,
@@ -173,18 +218,19 @@ func (repository *contentRepository) CreateContent(ctx context.Context, request 
 
 func (repository *contentRepository) UpdateContent(ctx context.Context, request entity.ContentEntity) error {
 	tags := strings.Join(request.Tags, ",")
-	modelContent := model.Content{
-		Title:       request.Title,
-		Excerpt:     request.Excerpt,
-		Description: request.Description,
-		Image:       request.Image,
-		Tags:        tags,
-		Status:      request.Status,
-		CategoryID:  request.CategoryID,
-		CreatedByID: request.CreatedByID,
+	updates := map[string]any{
+		"title":       request.Title,
+		"excerpt":     request.Excerpt,
+		"description": request.Description,
+		"image":       request.Image,
+		"tags":        tags,
+		"category_id": request.CategoryID,
+	}
+	if request.Status != "" {
+		updates["status"] = request.Status
 	}
 
-	result := repository.db.WithContext(ctx).Where("id = ?", request.ID).Updates(&modelContent)
+	result := repository.db.WithContext(ctx).Model(&model.Content{}).Where("id = ?", request.ID).Updates(updates)
 
 	if result.Error != nil {
 		code := "[REPOSITORY] UpdateContent - 1"
