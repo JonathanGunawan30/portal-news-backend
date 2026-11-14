@@ -2,7 +2,6 @@ package handler
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/adapter/handler/request"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/adapter/handler/response"
@@ -36,26 +35,20 @@ func NewCategoryHandler(categoryService service.CategoryService) CategoryHandler
 }
 
 func (handler *categoryHandler) GetCategories(ctx *fiber.Ctx) error {
-	claims, ok := ctx.Locals("user").(*entity.JwtData)
-	userID := claims.UserID
-	if userID == 0 || !ok {
+	if _, ok := getAuthenticatedUserID(ctx); !ok {
 		code := "[HANDLER] GetCategories - 1"
 		log.Errorw(code, "reason", "unauthorized")
-		errResp.Meta.Status = false
-		errResp.Meta.Message = "Unauthorized"
-		return ctx.Status(fiber.StatusUnauthorized).JSON(errResp)
+		return respondError(ctx, fiber.StatusUnauthorized, "Unauthorized")
 	}
 
 	results, err := handler.categoryService.GetCategories(ctx.Context())
 	if err != nil {
 		code := "[HANDLER] GetCategories - 2"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = "Failed to fetch categories"
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errResp)
+		return respondError(ctx, fiber.StatusInternalServerError, "Failed to fetch categories")
 	}
 
-	var responses = make([]response.SuccessCategoryResponse, 0)
+	var responses = make([]response.SuccessCategoryResponse, 0, len(results))
 	for _, result := range results {
 		responses = append(responses, response.SuccessCategoryResponse{
 			ID:            result.ID,
@@ -74,14 +67,10 @@ func (handler *categoryHandler) GetCategories(ctx *fiber.Ctx) error {
 }
 
 func (handler *categoryHandler) GetCategoryByID(ctx *fiber.Ctx) error {
-	claims, ok := ctx.Locals("user").(*entity.JwtData)
-	userID := claims.UserID
-	if userID == 0 || !ok {
+	if _, ok := getAuthenticatedUserID(ctx); !ok {
 		code := "[HANDLER] GetCategoryByID - 1"
 		log.Errorw(code, "reason", "unauthorized")
-		errResp.Meta.Status = false
-		errResp.Meta.Message = "Unauthorized"
-		return ctx.Status(fiber.StatusUnauthorized).JSON(errResp)
+		return respondError(ctx, fiber.StatusUnauthorized, "Unauthorized")
 	}
 
 	idStr := ctx.Params("id")
@@ -89,25 +78,19 @@ func (handler *categoryHandler) GetCategoryByID(ctx *fiber.Ctx) error {
 	if err != nil {
 		code := "[HANDLER] GetCategoryByID - 2"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = "Invalid ID format"
-		return ctx.Status(fiber.StatusBadRequest).JSON(errResp)
+		return respondError(ctx, fiber.StatusBadRequest, "Invalid ID format")
 	}
 
 	result, err := handler.categoryService.GetCategoryByID(ctx.Context(), id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			code := "[HANDLER] GetCategoryByID - 2"
+		if errors.Is(err, categoryError.ErrorCategoryNotFound) {
+			code := "[HANDLER] GetCategoryByID - 3"
 			log.Errorw(code, err)
-			errResp.Meta.Status = false
-			errResp.Meta.Message = "Category not found"
-			return ctx.Status(fiber.StatusNotFound).JSON(errResp)
+			return respondError(ctx, fiber.StatusNotFound, "Category not found")
 		}
-		code := "[HANDLER] GetCategoryByID - 3"
+		code := "[HANDLER] GetCategoryByID - 4"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = "Failed to get category"
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errResp)
+		return respondError(ctx, fiber.StatusInternalServerError, "Failed to get category")
 	}
 
 	categoryResponse := response.SuccessCategoryResponse{
@@ -124,41 +107,33 @@ func (handler *categoryHandler) GetCategoryByID(ctx *fiber.Ctx) error {
 	successResp.Data = categoryResponse
 
 	return ctx.JSON(successResp)
-
 }
 
 func (handler *categoryHandler) CreateCategory(ctx *fiber.Ctx) error {
 	var req request.CategoryRequest
-	claims, ok := ctx.Locals("user").(*entity.JwtData)
-	userID := claims.UserID
-	if userID == 0 || !ok {
+	userID, ok := getAuthenticatedUserID(ctx)
+	if !ok {
 		code := "[HANDLER] CreateCategory - 1"
 		log.Errorw(code, "reason", "unauthorized")
-		errResp.Meta.Status = false
-		errResp.Meta.Message = "Unauthorized"
-		return ctx.Status(fiber.StatusUnauthorized).JSON(errResp)
+		return respondError(ctx, fiber.StatusUnauthorized, "Unauthorized")
 	}
 
 	if err := ctx.BodyParser(&req); err != nil {
 		code := "[HANDLER] CreateCategory - 2"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = "Failed to parse request body"
-		return ctx.Status(fiber.StatusBadRequest).JSON(errResp)
+		return respondError(ctx, fiber.StatusBadRequest, "Failed to parse request body")
 	}
 
 	if err := validation.ValidateStruct(&req); err != nil {
 		code := "[HANDLER] CreateCategory - 3"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = err.Error()
-		return ctx.Status(fiber.StatusBadRequest).JSON(errResp)
+		return respondError(ctx, fiber.StatusBadRequest, err.Error())
 	}
 
 	categoryRequest := entity.CategoryEntity{
 		Title: req.Title,
 		User: entity.UserEntity{
-			ID: int64(userID),
+			ID: userID,
 		},
 	}
 
@@ -167,16 +142,12 @@ func (handler *categoryHandler) CreateCategory(ctx *fiber.Ctx) error {
 		if errors.Is(err, categoryError.ErrorCategoryTitleAlreadyExist) {
 			code := "[HANDLER] CreateCategory - 4"
 			log.Errorw(code, err)
-			errResp.Meta.Status = false
-			errResp.Meta.Message = "Category title already exists"
-			return ctx.Status(fiber.StatusConflict).JSON(errResp)
+			return respondError(ctx, fiber.StatusConflict, "Category title already exists")
 		}
 
 		code := "[HANDLER] CreateCategory - 5"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = err.Error()
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errResp)
+		return respondError(ctx, fiber.StatusInternalServerError, "Failed to create category")
 	}
 
 	var successResp response.DefaultSuccessResponse
@@ -185,19 +156,14 @@ func (handler *categoryHandler) CreateCategory(ctx *fiber.Ctx) error {
 	successResp.Meta.Message = "Category created successfully"
 	successResp.Data = req
 	return ctx.Status(fiber.StatusCreated).JSON(successResp)
-
 }
 
 func (handler *categoryHandler) EditCategoryByID(ctx *fiber.Ctx) error {
 	var req request.CategoryRequest
-	claims, ok := ctx.Locals("user").(*entity.JwtData)
-	userID := claims.UserID
-	if userID == 0 || !ok {
+	if _, ok := getAuthenticatedUserID(ctx); !ok {
 		code := "[HANDLER] EditCategoryByID - 1"
 		log.Errorw(code, "reason", "unauthorized")
-		errResp.Meta.Status = false
-		errResp.Meta.Message = "Unauthorized"
-		return ctx.Status(fiber.StatusUnauthorized).JSON(errResp)
+		return respondError(ctx, fiber.StatusUnauthorized, "Unauthorized")
 	}
 
 	idStr := ctx.Params("id")
@@ -205,25 +171,19 @@ func (handler *categoryHandler) EditCategoryByID(ctx *fiber.Ctx) error {
 	if err != nil {
 		code := "[HANDLER] EditCategoryByID - 2"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = "Invalid ID format"
-		return ctx.Status(fiber.StatusBadRequest).JSON(errResp)
+		return respondError(ctx, fiber.StatusBadRequest, "Invalid ID format")
 	}
 
 	if err = ctx.BodyParser(&req); err != nil {
 		code := "[HANDLER] EditCategoryByID - 3"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = "Failed to parse request body"
-		return ctx.Status(fiber.StatusBadRequest).JSON(errResp)
+		return respondError(ctx, fiber.StatusBadRequest, "Failed to parse request body")
 	}
 
 	if err = validation.ValidateStruct(&req); err != nil {
 		code := "[HANDLER] EditCategoryByID - 4"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = err.Error()
-		return ctx.Status(fiber.StatusBadRequest).JSON(errResp)
+		return respondError(ctx, fiber.StatusBadRequest, err.Error())
 	}
 
 	categoryRequest := entity.CategoryEntity{
@@ -236,24 +196,18 @@ func (handler *categoryHandler) EditCategoryByID(ctx *fiber.Ctx) error {
 		if errors.Is(err, categoryError.ErrorCategoryTitleAlreadyExist) {
 			code := "[HANDLER] EditCategoryByID - 5"
 			log.Errorw(code, err)
-			errResp.Meta.Status = false
-			errResp.Meta.Message = "Category title already exists"
-			return ctx.Status(fiber.StatusConflict).JSON(errResp)
+			return respondError(ctx, fiber.StatusConflict, "Category title already exists")
 		}
 
 		if errors.Is(err, categoryError.ErrorCategoryNotFoundToUpdate) {
 			code := "[HANDLER] EditCategoryByID - 6"
 			log.Errorw(code, err)
-			errResp.Meta.Status = false
-			errResp.Meta.Message = "Category not found"
-			return ctx.Status(fiber.StatusNotFound).JSON(errResp)
+			return respondError(ctx, fiber.StatusNotFound, "Category not found")
 		}
 
 		code := "[HANDLER] EditCategoryByID - 7"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = err.Error()
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errResp)
+		return respondError(ctx, fiber.StatusInternalServerError, "Failed to update category")
 	}
 
 	var successResp response.DefaultSuccessResponse
@@ -265,14 +219,10 @@ func (handler *categoryHandler) EditCategoryByID(ctx *fiber.Ctx) error {
 }
 
 func (handler *categoryHandler) DeleteCategoryByID(ctx *fiber.Ctx) error {
-	claims, ok := ctx.Locals("user").(*entity.JwtData)
-	userID := claims.UserID
-	if userID == 0 || !ok {
+	if _, ok := getAuthenticatedUserID(ctx); !ok {
 		code := "[HANDLER] DeleteCategoryByID - 1"
 		log.Errorw(code, "reason", "unauthorized")
-		errResp.Meta.Status = false
-		errResp.Meta.Message = "Unauthorized"
-		return ctx.Status(fiber.StatusUnauthorized).JSON(errResp)
+		return respondError(ctx, fiber.StatusUnauthorized, "Unauthorized")
 	}
 
 	idStr := ctx.Params("id")
@@ -280,35 +230,26 @@ func (handler *categoryHandler) DeleteCategoryByID(ctx *fiber.Ctx) error {
 	if err != nil {
 		code := "[HANDLER] DeleteCategoryByID - 2"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = "Invalid ID format"
-		return ctx.Status(fiber.StatusBadRequest).JSON(errResp)
+		return respondError(ctx, fiber.StatusBadRequest, "Invalid ID format")
 	}
 
 	err = handler.categoryService.DeleteCategoryByID(ctx.Context(), id)
-
 	if err != nil {
 		if errors.Is(err, categoryError.ErrorCategoryNotFoundToDelete) {
 			code := "[HANDLER] DeleteCategoryByID - 3"
 			log.Errorw(code, err)
-			errResp.Meta.Status = false
-			errResp.Meta.Message = "Category not found"
-			return ctx.Status(fiber.StatusNotFound).JSON(errResp)
+			return respondError(ctx, fiber.StatusNotFound, "Category not found")
 		}
 
 		if errors.Is(err, categoryError.ErrorCategoryHasAssociatedContent) {
 			code := "[HANDLER] DeleteCategoryByID - 4"
 			log.Errorw(code, err)
-			errResp.Meta.Status = false
-			errResp.Meta.Message = "Cannot delete, category has associated content"
-			return ctx.Status(fiber.StatusConflict).JSON(errResp)
+			return respondError(ctx, fiber.StatusConflict, "Cannot delete, category has associated content")
 		}
 
 		code := "[HANDLER] DeleteCategoryByID - 5"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = err.Error()
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errResp)
+		return respondError(ctx, fiber.StatusInternalServerError, "Failed to delete category")
 	}
 
 	var successResp response.DefaultSuccessResponse
@@ -317,7 +258,6 @@ func (handler *categoryHandler) DeleteCategoryByID(ctx *fiber.Ctx) error {
 	successResp.Data = nil
 	successResp.Meta.Message = "Category deleted successfully"
 	return ctx.Status(fiber.StatusOK).JSON(successResp)
-
 }
 
 func (handler *categoryHandler) GetCategoryFE(ctx *fiber.Ctx) error {
@@ -325,12 +265,10 @@ func (handler *categoryHandler) GetCategoryFE(ctx *fiber.Ctx) error {
 	if err != nil {
 		code := "[HANDLER] GetCategoryFE - 1"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = "Failed to fetch categories"
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errResp)
+		return respondError(ctx, fiber.StatusInternalServerError, "Failed to fetch categories")
 	}
 
-	categoryResponses := make([]response.SuccessCategoryResponse, 0)
+	categoryResponses := make([]response.SuccessCategoryResponse, 0, len(results))
 	for _, result := range results {
 		categoryResponses = append(categoryResponses, response.SuccessCategoryResponse{
 			ID:            result.ID,
@@ -346,5 +284,4 @@ func (handler *categoryHandler) GetCategoryFE(ctx *fiber.Ctx) error {
 	successResp.Meta.Message = "Categories fetched successfully"
 	successResp.Data = categoryResponses
 	return ctx.JSON(successResp)
-
 }

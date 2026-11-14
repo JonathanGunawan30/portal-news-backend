@@ -2,7 +2,6 @@ package handler
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/JonathanGunawan30/portal-news-backend.git/config"
@@ -10,13 +9,12 @@ import (
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/adapter/handler/response"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/core/domain/entity"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/core/service"
+	"github.com/JonathanGunawan30/portal-news-backend.git/lib/auth"
 	"github.com/JonathanGunawan30/portal-news-backend.git/lib/recaptcha"
 	validation "github.com/JonathanGunawan30/portal-news-backend.git/validator"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
 )
-
-var errResp response.ErrorResponseDefault
 
 type AuthHandler interface {
 	Login(ctx *fiber.Ctx) error
@@ -26,12 +24,14 @@ type AuthHandler interface {
 type authHandler struct {
 	authService service.AuthService
 	cfg         *config.Config
+	jwtAuth     auth.Jwt
 }
 
-func NewAuthHandler(authService service.AuthService, cfg *config.Config) AuthHandler {
+func NewAuthHandler(authService service.AuthService, cfg *config.Config, jwtAuth auth.Jwt) AuthHandler {
 	return &authHandler{
 		authService: authService,
 		cfg:         cfg,
+		jwtAuth:     jwtAuth,
 	}
 }
 
@@ -40,34 +40,26 @@ func (handler *authHandler) Login(ctx *fiber.Ctx) error {
 	if err := ctx.BodyParser(&loginRequest); err != nil {
 		code := "[HANDLER] login - 1"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = err.Error()
-		return ctx.Status(fiber.StatusBadRequest).JSON(errResp)
+		return respondError(ctx, fiber.StatusBadRequest, "Invalid request body")
 	}
 
 	if err := validation.ValidateStruct(loginRequest); err != nil {
 		code := "[HANDLER] login - 2"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = err.Error()
-		return ctx.Status(fiber.StatusBadRequest).JSON(errResp)
+		return respondError(ctx, fiber.StatusBadRequest, err.Error())
 	}
 
-	recaptchaResult, err := recaptcha.VerifyToken(handler.cfg.App.RecaptchaSecretKey, loginRequest.RecaptchaToken)
+	recaptchaResult, err := recaptcha.VerifyToken(ctx.Context(), handler.cfg.App.RecaptchaSecretKey, loginRequest.RecaptchaToken)
 	if err != nil {
 		code := "[HANDLER] login - recaptcha_error"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = "Error verifying reCAPTCHA"
-		return ctx.Status(fiber.StatusInternalServerError).JSON(errResp)
+		return respondError(ctx, fiber.StatusInternalServerError, "Error verifying reCAPTCHA")
 	}
 
 	if !recaptchaResult.Success || recaptchaResult.Score < 0.5 {
 		code := "[HANDLER] login - recaptcha_failed"
 		log.Errorw(code, fmt.Errorf("recaptcha failed: success=%v, score=%f", recaptchaResult.Success, recaptchaResult.Score))
-		errResp.Meta.Status = false
-		errResp.Meta.Message = "reCAPTCHA verification failed"
-		return ctx.Status(fiber.StatusForbidden).JSON(errResp)
+		return respondError(ctx, fiber.StatusForbidden, "reCAPTCHA verification failed")
 	}
 
 	userLoginRequest := entity.LoginRequest{
@@ -79,27 +71,10 @@ func (handler *authHandler) Login(ctx *fiber.Ctx) error {
 	if err != nil {
 		code := "[HANDLER] login - 3"
 		log.Errorw(code, err)
-		errResp.Meta.Status = false
-		errResp.Meta.Message = err.Error()
-		return ctx.Status(fiber.StatusBadRequest).JSON(errResp)
+		return respondError(ctx, fiber.StatusBadRequest, "Invalid email or password")
 	}
 
-	sameSite := "Lax"
-	secure := false
-	if os.Getenv("APP_ENV") == "production" {
-		sameSite = "None"
-		secure = true
-	}
-
-	ctx.Cookie(&fiber.Cookie{
-		Name:     "X-API-TOKEN",
-		Value:    result.AccessToken,
-		Expires:  time.Unix(result.ExpiredAt, 0),
-		HTTPOnly: true,
-		Secure:   secure,
-		SameSite: sameSite,
-		Path:     "/",
-	})
+	setAuthCookie(ctx, result.AccessToken, time.Unix(result.ExpiredAt, 0), isProductionEnv(handler.cfg))
 
 	var successResp response.DefaultSuccessResponse
 	successResp.Meta.Status = true
@@ -109,26 +84,16 @@ func (handler *authHandler) Login(ctx *fiber.Ctx) error {
 	}
 
 	return ctx.JSON(successResp)
-
 }
 
 func (handler *authHandler) Logout(ctx *fiber.Ctx) error {
-	sameSite := "Lax"
-	secure := false
-	if os.Getenv("APP_ENV") == "production" {
-		sameSite = "None"
-		secure = true
+	if token := ctx.Cookies("X-API-TOKEN"); token != "" && handler.jwtAuth != nil {
+		if err := handler.jwtAuth.RevokeToken(token); err != nil {
+			log.Warnw("[HANDLER] logout - revoke_token", err)
+		}
 	}
 
-	ctx.Cookie(&fiber.Cookie{
-		Name:     "X-API-TOKEN",
-		Value:    "",
-		Expires:  time.Now().Add(-time.Hour),
-		HTTPOnly: true,
-		Secure:   secure,
-		SameSite: sameSite,
-		Path:     "/",
-	})
+	setAuthCookie(ctx, "", time.Now().Add(-time.Hour), isProductionEnv(handler.cfg))
 
 	var successResp response.DefaultSuccessResponse
 	successResp.Meta.Status = true

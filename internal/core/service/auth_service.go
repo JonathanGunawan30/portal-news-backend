@@ -3,8 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"strconv"
-	"time"
 
 	"github.com/JonathanGunawan30/portal-news-backend.git/config"
 	"github.com/JonathanGunawan30/portal-news-backend.git/internal/adapter/repository"
@@ -12,7 +10,6 @@ import (
 	"github.com/JonathanGunawan30/portal-news-backend.git/lib/auth"
 	"github.com/JonathanGunawan30/portal-news-backend.git/lib/conv"
 	"github.com/gofiber/fiber/v2/log"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 type AuthService interface {
@@ -49,11 +46,7 @@ func (service *authService) GetUserByEmail(ctx context.Context, request entity.L
 	}
 
 	jwtData := entity.JwtData{
-		UserID: float64(result.ID),
-		RegisteredClaims: jwt.RegisteredClaims{
-			NotBefore: jwt.NewNumericDate(time.Now()),
-			ID:        strconv.FormatInt(result.ID, 10),
-		},
+		UserID: result.ID,
 	}
 
 	token, expiredAt, err := service.jwtToken.GenerateToken(&jwtData)

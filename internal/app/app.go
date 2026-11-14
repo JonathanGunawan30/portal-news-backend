@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -27,22 +28,24 @@ import (
 
 func RunServer() {
 	cfg := config.NewConfig()
+	if strings.TrimSpace(cfg.App.JwtSecretKey) == "" {
+		log.Fatal().Msg("JWT_SECRET_KEY must be configured")
+		return
+	}
+	if len(cfg.App.JwtSecretKey) < 32 {
+		log.Warn().Msg("JWT_SECRET_KEY is shorter than 32 bytes; use a stronger secret key")
+	}
+
 	db, err := cfg.ConnectionPostgres()
 	if err != nil {
 		log.Fatal().Msgf("Error connection to database: %v", err)
 		return
 	}
 
-	err = os.MkdirAll("/tmp/content", 0755)
-	if err != nil {
-		log.Fatal().Msgf("Error create temp directory: %v", err)
-		return
-	}
-
 	r2Adapter := cloudflare.NewCloudflareR2Adapter(cfg)
 
-	jwt := auth.NewJwt(cfg)
-	middlewareAuth := middleware.NewMiddleware(cfg)
+	jwtAuth := auth.NewJwt(cfg)
+	middlewareAuth := middleware.NewMiddleware(jwtAuth)
 	_ = pagination.NewPagination()
 
 	// repository
@@ -52,20 +55,31 @@ func RunServer() {
 	userRepository := repository.NewUserRepository(db.DB)
 
 	// service
-	authService := service.NewAuthService(authRepository, cfg, jwt)
+	authService := service.NewAuthService(authRepository, cfg, jwtAuth)
 	categoryService := service.NewCategoryService(categoryRepository)
 	contentService := service.NewContentService(contentRepository, cfg, r2Adapter)
 	userService := service.NewUserService(userRepository)
 
 	// handler
-	authHandler := handler.NewAuthHandler(authService, cfg)
+	authHandler := handler.NewAuthHandler(authService, cfg, jwtAuth)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	contentHandler := handler.NewContentHandler(contentService)
-	userHandler := handler.NewUserHandler(userService)
+	userHandler := handler.NewUserHandler(userService, cfg, jwtAuth)
 
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+		BodyLimit:    6 * 1024 * 1024,
+	})
+
+	appEnv := strings.TrimSpace(cfg.App.AppEnv)
+	if appEnv == "" {
+		appEnv = strings.TrimSpace(os.Getenv("APP_ENV"))
+	}
+
 	allowOrigins := "https://blog.jonathangunawan.com"
-	if os.Getenv("APP_ENV") == "development" {
+	if strings.EqualFold(appEnv, "development") {
 		allowOrigins = "http://localhost:3000"
 	}
 
@@ -75,6 +89,12 @@ func RunServer() {
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
 		AllowCredentials: true,
 	}))
+	app.Use(func(c *fiber.Ctx) error {
+		c.Set("X-Content-Type-Options", "nosniff")
+		c.Set("X-Frame-Options", "DENY")
+		c.Set("Referrer-Policy", "no-referrer")
+		return c.Next()
+	})
 	app.Use(recover.New())
 	app.Use(logger.New(logger.Config{
 		Format: "[${time}] ${ip} ${status} - ${latency} ${method} ${path}\n",
@@ -92,34 +112,25 @@ func RunServer() {
 
 	api := app.Group("/api")
 
-	log.Info().Msgf("--- Starting Swagger Debug Check ---")
-	log.Info().Msgf("APP_ENV value: '%s'", os.Getenv("APP_ENV"))
+	if strings.EqualFold(appEnv, "development") {
+		filePath := "./docs/apispec.yaml"
+		if _, err := os.Stat(filePath); os.IsNotExist(err) {
+			log.Fatal().Msgf("Error swagger file not found: %v", err)
+		}
 
-	filePath := "./docs/apispec.yaml"
-	if _, err := os.Stat(filePath); os.IsNotExist(err) {
-		log.Warn().Msgf("Swagger spec file NOT FOUND at path: %s", filePath)
-	} else {
-		log.Info().Msgf("Swagger spec file FOUND at path: %s", filePath)
-	}
-	log.Info().Msgf("--- Swagger Debug Check Completed ---")
-
-	if os.Getenv("APP_ENV") == "development" {
 		swaggerCfg := swagger.Config{
 			BasePath: "/api",
-			FilePath: "./docs/apispec.yaml",
+			FilePath: filePath,
 			Path:     "docs",
 			Title:    "Swagger API Docs",
 		}
 		api.Use(swagger.New(swaggerCfg))
-
-		if _, err := os.Stat(swaggerCfg.FilePath); os.IsNotExist(err) {
-			log.Fatal().Msgf("Error swagger file not found: %v", err)
-		}
 	}
 
 	api.Post("/login", authHandler.Login)
 
 	adminApp := api.Group("/admin")
+	adminApp.Use(middlewareAuth.CheckOrigin(allowOrigins))
 	adminApp.Use(middlewareAuth.CheckToken())
 	adminApp.Post("/logout", authHandler.Logout)
 
@@ -147,7 +158,10 @@ func RunServer() {
 	feApp.Get("/contents", contentHandler.GetContentWithQuery)
 	feApp.Get("/contents/:id", contentHandler.GetContentDetail)
 
-	port := os.Getenv("PORT")
+	port := strings.TrimSpace(os.Getenv("PORT"))
+	if port == "" {
+		port = strings.TrimSpace(cfg.App.AppPort)
+	}
 	if port == "" {
 		port = "8080"
 	}
@@ -172,5 +186,4 @@ func RunServer() {
 	}
 
 	log.Info().Msg("server exited cleanly")
-
 }
