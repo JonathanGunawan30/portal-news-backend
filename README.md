@@ -9,7 +9,7 @@ A robust and secure backend API for a news portal application, built with Go usi
 - **Content Storage**: Integrated with **Cloudflare R2** for scalable object storage.
 - **Database**: PostgreSQL with **GORM** for efficient ORM and migrations.
 - **Security**:
-  - **Global Rate Limiting**: 60 requests per minute per IP to prevent DDoS and brute-force attacks.
+  - **Global Rate Limiting**: 60 requests per 10 minutes per IP to prevent DDoS and brute-force attacks.
   - **Google reCAPTCHA v3**: Mandatory token verification for admin login to ensure human-only access.
 - **API Documentation**: Interactive **Swagger UI** available in development mode.
 - **Validation**: Strict request validation using `go-playground/validator`.
@@ -17,7 +17,7 @@ A robust and secure backend API for a news portal application, built with Go usi
 
 ## 🛠 Tech Stack
 
-- **Language**: [Go (1.24+)](https://go.dev/)
+- **Language**: [Go (1.27+)](https://go.dev/)
 - **Web Framework**: [Fiber v2](https://gofiber.io/)
 - **Database**: [PostgreSQL](https://www.postgresql.org/)
 - **ORM**: [GORM](https://gorm.io/)
@@ -28,7 +28,7 @@ A robust and secure backend API for a news portal application, built with Go usi
 
 ## 📋 Prerequisites
 
-- Go 1.24 or higher
+- Go 1.27.4 or higher
 - PostgreSQL
 - Cloudflare R2 Account (for file uploads)
 - Google reCAPTCHA v3 Secret Key
